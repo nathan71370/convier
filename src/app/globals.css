@@ -1,26 +1,227 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  --color-paper: #f4ede0;
+  --color-paper-deep: #e9dfcd;
+  --color-paper-edge: #d9cdb6;
+  --color-ink: #1b1714;
+  --color-ink-soft: #6b5f52;
+  --color-ink-faint: #a2947f;
+  --color-vermilion: #c2452a;
+  --color-yes: #3d6b4c;
+  --color-maybe: #9a6f14;
+  --color-no: #a13c2b;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --font-title: var(--font-fraunces), Georgia, serif;
+  --font-sans: var(--font-karla), ui-sans-serif, system-ui, sans-serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --radius-card: 2px;
+
+  --animate-rise: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  --animate-stamp: stamp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes stamp {
+    0% {
+      transform: scale(0.82) rotate(-6deg);
+      opacity: 0.4;
+    }
+    60% {
+      transform: scale(1.04) rotate(1deg);
+    }
+    100% {
+      transform: none;
+      opacity: 1;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  :root {
+    color-scheme: light;
+    --surface: var(--color-paper);
+    --surface-raised: #fbf7ef;
+    --text: var(--color-ink);
+    --text-soft: var(--color-ink-soft);
+    --rule: var(--color-paper-edge);
+    --grain-opacity: 0.5;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface: #151210;
+      --surface-raised: #1e1a16;
+      --text: #ece2d2;
+      --text-soft: #a8998a;
+      --rule: #332c25;
+      --grain-opacity: 0.35;
+    }
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--surface);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.6;
+    letter-spacing: 0.005em;
+    min-height: 100dvh;
+    position: relative;
+  }
+
+  /* Paper grain. Fixed and non-interactive so it never shifts on scroll. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: var(--grain-opacity);
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='0.22'/%3E%3C/svg%3E");
+  }
+
+  @media (prefers-color-scheme: dark) {
+    body::before {
+      mix-blend-mode: screen;
+    }
+  }
+
+  ::selection {
+    background: var(--color-vermilion);
+    color: #fff;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-vermilion);
+    outline-offset: 3px;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@layer components {
+  /* Small letterpressed labels above every field and section. */
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+  }
+
+  .field {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 0.55rem 0 0.5rem;
+    transition: border-color 0.2s ease;
+  }
+
+  .field:hover {
+    border-color: var(--text-soft);
+  }
+
+  .field:focus {
+    outline: none;
+    border-color: var(--color-vermilion);
+  }
+
+  .field::placeholder {
+    color: var(--color-ink-faint);
+  }
+
+  /* The card is a printed invitation: hairline rule, soft lift, no rounding. */
+  .card {
+    background: var(--surface-raised);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-card);
+    box-shadow:
+      0 1px 0 rgb(0 0 0 / 0.02),
+      0 18px 40px -28px rgb(27 23 20 / 0.45);
+  }
+
+  .btn-ink {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: var(--text);
+    color: var(--surface);
+    padding: 0.85rem 1.6rem;
+    border: 0;
+    border-radius: 999px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition:
+      transform 0.15s ease,
+      opacity 0.15s ease;
+  }
+
+  .btn-ink:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .btn-ink:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .btn-ink:disabled {
+    opacity: 0.5;
+    cursor: progress;
+  }
+
+  .btn-quiet {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.7rem 1.1rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition:
+      border-color 0.18s ease,
+      transform 0.18s ease;
+  }
+
+  .btn-quiet:hover {
+    border-color: var(--text-soft);
+    transform: translateY(-1px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

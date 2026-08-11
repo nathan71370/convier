@@ -1,0 +1,228 @@
+"use client";
+
+import { useActionState, useEffect, useId, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
+import type { FormState } from "@/app/actions";
+import { FieldError, Label } from "./Field";
+
+export type EventFormInitial = {
+  title: string;
+  description: string;
+  location: string;
+  hostName: string;
+  /** Wall-clock strings already expressed in `timezone` by the server. */
+  startLocal: string;
+  endLocal: string;
+  deadlineLocal: string;
+  allDay: boolean;
+};
+
+type Props = {
+  action: (state: FormState, form: FormData) => Promise<FormState>;
+  submitLabel: string;
+  initial: EventFormInitial;
+  /** The zone the wall-clock values above belong to. */
+  timezone: string;
+  /** Creating: adopt the visitor's zone. Editing: keep the event's own. */
+  detectTimezone: boolean;
+  hidden?: Record<string, string>;
+};
+
+function Submit({ label }: { label: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" className="btn-ink w-full sm:w-auto" disabled={pending}>
+      {pending ? "Un instant…" : label}
+    </button>
+  );
+}
+
+export function EventForm({
+  action,
+  submitLabel,
+  initial,
+  timezone,
+  detectTimezone,
+  hidden,
+}: Props) {
+  const [state, formAction] = useActionState<FormState, FormData>(action, {});
+  const id = useId();
+  const errors = state.errors ?? {};
+
+  const [allDay, setAllDay] = useState(initial.allDay);
+  const [start, setStart] = useState(initial.startLocal);
+  const [end, setEnd] = useState(initial.endLocal);
+  const [deadline, setDeadline] = useState(initial.deadlineLocal);
+  const [showExtras, setShowExtras] = useState(
+    Boolean(initial.endLocal || initial.deadlineLocal || initial.hostName),
+  );
+
+  // Written straight to the DOM rather than through state: the server rendered
+  // a zone already, and a re-render here would only risk a hydration mismatch.
+  const timezoneRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!detectTimezone || !timezoneRef.current) return;
+    timezoneRef.current.value = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  }, [detectTimezone]);
+
+  // Switching to an all-day event drops the time portion rather than keeping a
+  // stale hour hidden in state.
+  function switchAllDay(next: boolean) {
+    setAllDay(next);
+    setStart((value) => (next ? value.slice(0, 10) : `${value.slice(0, 10)}T19:30`));
+    setEnd((value) =>
+      value ? (next ? value.slice(0, 10) : `${value.slice(0, 10)}T23:00`) : value,
+    );
+  }
+
+  const dateType = allDay ? "date" : "datetime-local";
+
+  return (
+    <form action={formAction} className="space-y-8">
+      {Object.entries(hidden ?? {}).map(([key, value]) => (
+        <input key={key} type="hidden" name={key} value={value} />
+      ))}
+      <input ref={timezoneRef} type="hidden" name="timezone" defaultValue={timezone} />
+
+      <div>
+        <Label htmlFor={`${id}-title`}>Quel est l&apos;événement ?</Label>
+        <input
+          id={`${id}-title`}
+          name="title"
+          defaultValue={initial.title}
+          required
+          maxLength={120}
+          autoComplete="off"
+          placeholder="Crémaillère chez Nathan"
+          className="field font-title mt-1 text-2xl leading-snug sm:text-3xl"
+          style={{ fontVariationSettings: "'SOFT' 30, 'WONK' 1" }}
+        />
+        <FieldError message={errors.title} />
+      </div>
+
+      <div className="grid gap-6 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`${id}-start`}>Quand</Label>
+          <input
+            id={`${id}-start`}
+            name="startsAt"
+            type={dateType}
+            value={start}
+            onChange={(event) => setStart(event.target.value)}
+            required
+            className="field mt-1"
+          />
+          <FieldError message={errors.startsAt} />
+          <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="allDay"
+              checked={allDay}
+              onChange={(event) => switchAllDay(event.target.checked)}
+              className="accent-vermilion size-4"
+            />
+            Journée entière
+          </label>
+        </div>
+
+        <div>
+          <Label htmlFor={`${id}-location`} hint="facultatif">
+            Où
+          </Label>
+          <input
+            id={`${id}-location`}
+            name="location"
+            defaultValue={initial.location}
+            maxLength={200}
+            autoComplete="off"
+            placeholder="12 rue des Lilas, Lyon"
+            className="field mt-1"
+          />
+          <FieldError message={errors.location} />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor={`${id}-description`} hint="facultatif">
+          Un mot pour les invités
+        </Label>
+        <textarea
+          id={`${id}-description`}
+          name="description"
+          defaultValue={initial.description}
+          rows={3}
+          maxLength={2000}
+          placeholder="On commence par l'apéro, ramenez ce que vous voulez boire."
+          className="field mt-1 resize-y"
+        />
+        <FieldError message={errors.description} />
+      </div>
+
+      {showExtras ? (
+        <div className="border-(--rule) grid gap-6 border-l-2 pl-5 sm:grid-cols-3">
+          <div>
+            <Label htmlFor={`${id}-host`} hint="facultatif">
+              Organisé par
+            </Label>
+            <input
+              id={`${id}-host`}
+              name="hostName"
+              defaultValue={initial.hostName}
+              maxLength={80}
+              autoComplete="off"
+              placeholder="Nathan"
+              className="field mt-1"
+            />
+          </div>
+          <div>
+            <Label htmlFor={`${id}-end`} hint="facultatif">
+              Fin
+            </Label>
+            <input
+              id={`${id}-end`}
+              name="endsAt"
+              type={dateType}
+              value={end}
+              onChange={(event) => setEnd(event.target.value)}
+              className="field mt-1"
+            />
+            <FieldError message={errors.endsAt} />
+          </div>
+          <div>
+            <Label htmlFor={`${id}-deadline`} hint="facultatif">
+              Réponses avant le
+            </Label>
+            <input
+              id={`${id}-deadline`}
+              name="rsvpDeadline"
+              type="datetime-local"
+              value={deadline}
+              onChange={(event) => setDeadline(event.target.value)}
+              className="field mt-1"
+            />
+            <FieldError message={errors.rsvpDeadline} />
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowExtras(true)}
+          className="text-ink-soft hover:text-vermilion text-sm font-semibold underline underline-offset-4 transition-colors"
+        >
+          + Heure de fin, organisateur, date limite de réponse
+        </button>
+      )}
+
+      <FieldError message={errors.form} />
+
+      <div className="flex flex-wrap items-center gap-4 pt-2">
+        <Submit label={submitLabel} />
+        {state.ok ? (
+          <span className="text-yes animate-stamp text-sm font-bold">
+            ✓ Modifications enregistrées
+          </span>
+        ) : null}
+      </div>
+    </form>
+  );
+}

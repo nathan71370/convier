@@ -47,8 +47,15 @@ transforme une seconde réponse du même navigateur en mise à jour plutôt qu'e
 doublon.
 
 Les dates sont stockées en instants absolus (epoch ms). Le fuseau est conservé à
-part, uniquement pour réafficher l'heure telle que l'organisateur l'a voulue et
-pour générer le fichier calendrier.
+part, pour réafficher l'heure telle que l'organisateur l'a voulue et pour
+générer le fichier calendrier.
+
+La conversion entre horloge murale et instant se fait côté serveur, à partir du
+fuseau posté avec le formulaire. Deux raisons : le rendu ne dépend plus de la
+machine qui l'exécute, ce qui supprime tout écart d'hydratation ; et un
+organisateur qui édite depuis un autre fuseau continue de voir et de saisir les
+heures de l'événement, pas les siennes. Les passages heure d'été / heure d'hiver
+sont résolus en deux passes d'offset.
 
 ## Architecture
 
@@ -64,10 +71,17 @@ API sauf une : la génération du fichier `.ics`, qui doit répondre avec un
 - `/api/e/[slug]/ics` — fichier calendrier.
 
 Chaque unité a une responsabilité isolée : `src/lib/ics.ts` ne sait que
-fabriquer un VEVENT à partir d'un événement, `src/lib/photo.ts` ne sait que
-réduire une image dans un canvas, `src/lib/validation.ts` porte les schémas Zod
-partagés entre formulaire et action. Les composants d'interface reçoivent des
-données déjà formées et ne parlent jamais à la base.
+fabriquer un VEVENT à partir d'un événement, `src/lib/zoned.ts` ne sait que
+convertir des horloges murales en instants, `src/lib/rsvp.ts` porte les
+décomptes, `src/lib/photo.ts` réduit une image dans un canvas,
+`src/lib/validation.ts` porte les schémas Zod partagés entre formulaire et
+action. Aucun de ces modules ne touche la base : seul `src/lib/events.ts` le
+fait, ce qui les rend tous testables sans base de données. Les composants
+d'interface reçoivent des données déjà formées et ne parlent jamais à la base.
+
+La lecture de l'horloge passe par `src/lib/clock.ts` plutôt que par des appels
+à `Date.now()` disséminés dans les pages : les fonctions qui dépendent du temps
+reçoivent `now` en argument et se testent donc sans geler l'horloge.
 
 ## Ajout au calendrier
 
@@ -96,6 +110,8 @@ réponse, le formulaire est remplacé par un message et l'action refuse toute
 
 Les fonctions pures portent l'essentiel du risque et sont testées en priorité :
 génération et échappement du `.ics` (retours à la ligne, virgules, pliage des
-lignes à 75 octets), construction de l'URL Google, schémas de validation aux
-bornes. Le parcours complet — créer, répondre, changer de réponse, voir le
-décompte — est vérifié dans le navigateur avant livraison.
+lignes à 75 octets), construction de l'URL Google, conversions de fuseau aux
+passages heure d'été / heure d'hiver, décomptes de présences, schémas de
+validation aux bornes. Le parcours complet — créer, répondre, changer de
+réponse, voir le décompte, modifier via le lien admin — est vérifié dans le
+navigateur avant livraison.

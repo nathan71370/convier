@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Convier
 
-## Getting Started
+Crée un événement, partage un lien. Tes invités mettent leur prénom, une photo
+s'ils veulent, disent s'ils viennent, et l'ajoutent à leur agenda d'un clic.
+Aucun compte, aucune adresse e-mail.
 
-First, run the development server:
+## Démarrer
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install && npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+L'application tourne sur http://localhost:3000 et crée sa base SQLite dans
+`data/local.db` au premier chargement. Aucune configuration n'est nécessaire
+pour développer.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm test        # tests unitaires (node --test)
+npm run build   # build de production
+npm run lint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Comment ça marche
 
-## Learn More
+L'organisateur remplit un formulaire et reçoit deux liens : un **lien public**
+à partager, et un **lien d'administration** secret qui permet de modifier ou de
+supprimer l'événement. Le lien d'administration n'est affiché qu'une fois, à la
+création.
 
-To learn more about Next.js, take a look at the following resources:
+Les invités n'ont pas de compte. Un cookie aléatoire identifie le navigateur,
+ce qui permet à chacun de revenir modifier sa propre réponse — et rien d'autre.
+Les photos sont recadrées en vignette 256×256 dans le navigateur avant l'envoi
+et stockées en data URL : aucun service de stockage externe n'est requis.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Le bouton calendrier propose un fichier `.ics` (Apple Calendar, Outlook,
+Thunderbird) et un lien Google Agenda. L'`UID` du fichier `.ics` est stable :
+retélécharger après une modification met l'entrée à jour au lieu d'en créer une
+seconde.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Fuseaux horaires
 
-## Deploy on Vercel
+Les dates sont stockées en instants absolus (millisecondes epoch) et le fuseau
+IANA de l'événement est conservé à part. La conversion entre horloge murale et
+instant se fait **côté serveur** (`src/lib/zoned.ts`), y compris aux passages
+heure d'été / heure d'hiver. Concrètement : un organisateur à Tokyo qui modifie
+un événement parisien voit et saisit des heures de Paris.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+  app/            pages (App Router) et Server Actions
+  components/     interface — ne parle jamais à la base
+  db/             schéma Drizzle et client libSQL
+  lib/            fonctions pures : ics, fuseaux, validation, photo
+```
+
+Chaque module de `lib/` a une responsabilité unique et ses propres tests. Les
+pages sont des composants serveur qui lisent la base directement ; les
+mutations passent par des Server Actions. La seule route API est celle qui sert
+le fichier `.ics`, parce qu'elle doit répondre avec ses propres en-têtes.
+
+## Déploiement
+
+L'application parle à libSQL. En local c'est un fichier ; en production, pointe
+`DATABASE_URL` vers une base [Turso](https://turso.tech) — le code ne change
+pas.
+
+| Variable | Rôle |
+|---|---|
+| `DATABASE_URL` | `file:./data/local.db` par défaut, ou `libsql://…` en production |
+| `DATABASE_AUTH_TOKEN` | jeton Turso, en production uniquement |
+| `NEXT_PUBLIC_SITE_URL` | origine publique utilisée dans les liens partagés et le `.ics` ; déduite des en-têtes de la requête si absente |
