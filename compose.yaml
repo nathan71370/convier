@@ -1,0 +1,25 @@
+services:
+  convier:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: convier:latest
+    container_name: convier
+    restart: unless-stopped
+    environment:
+      # Public origin of the site. Used for the links shown to the host and for
+      # the URL written into the .ics file, so it must be the address guests
+      # actually reach — not localhost.
+      SITE_URL: ${SITE_URL:?définis SITE_URL, ex. https://convier.mondomaine.fr}
+      # Local SQLite file, relative to /app. Point this at libsql://… plus
+      # DATABASE_AUTH_TOKEN to move the data to Turso instead.
+      DATABASE_URL: ${DATABASE_URL:-file:./data/local.db}
+    volumes:
+      # Everything the app remembers lives here. Drop this line and every
+      # event disappears the next time the container is recreated.
+      - convier-data:/app/data
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+
+volumes:
+  convier-data:

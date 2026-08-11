@@ -70,4 +70,9 @@ pas.
 |---|---|
 | `DATABASE_URL` | `file:./data/local.db` par défaut, ou `libsql://…` en production |
 | `DATABASE_AUTH_TOKEN` | jeton Turso, en production uniquement |
-| `NEXT_PUBLIC_SITE_URL` | origine publique utilisée dans les liens partagés et le `.ics` ; déduite des en-têtes de la requête si absente |
+| `SITE_URL` | origine publique utilisée dans les liens partagés et le `.ics` ; déduite des en-têtes de la requête si absente |
+
+Volontairement pas préfixée `NEXT_PUBLIC_` : ces variables-là sont figées à la
+compilation, ce qui lierait une image construite à un seul domaine. `SITE_URL`
+est lue côté serveur à chaque requête, donc la même image sert n'importe quel
+hôte.
