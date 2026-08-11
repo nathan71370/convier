@@ -8,20 +8,40 @@ services:
     # Stack. En figer un ici empêcherait de faire tourner deux instances
     # (prod et préprod, par exemple) sur le même serveur.
     restart: unless-stopped
+
+    networks:
+      - default
+      - traefik
+
+    # Pas de `ports:` : Traefik joint le conteneur par le réseau `traefik` sur
+    # le port 3000. Publier ce port sur l'hôte exposerait l'app en HTTP clair,
+    # à côté du HTTPS servi par le proxy.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.convier.rule=Host(`${CONVIER_HOST:-convier.limperiam.com}`)"
+      - "traefik.http.routers.convier.entrypoints=websecure"
+      - "traefik.http.routers.convier.tls=true"
+      - "traefik.http.services.convier.loadbalancer.server.port=3000"
+
     environment:
-      # Public origin of the site. Used for the links shown to the host and for
-      # the URL written into the .ics file, so it must be the address guests
-      # actually reach — not localhost.
-      SITE_URL: ${SITE_URL:?définis SITE_URL, ex. https://convier.mondomaine.fr}
-      # Local SQLite file, relative to /app. Point this at libsql://… plus
-      # DATABASE_AUTH_TOKEN to move the data to Turso instead.
+      # Origine publique du site : liens montrés à l'organisateur et URL
+      # inscrite dans le .ics. Dérivée du même hôte que la règle Traefik pour
+      # que les deux ne puissent pas diverger.
+      SITE_URL: ${SITE_URL:-https://${CONVIER_HOST:-convier.limperiam.com}}
+      # Fichier SQLite local, relatif à /app. Pointe vers libsql://… avec
+      # DATABASE_AUTH_TOKEN pour déporter les données sur Turso.
       DATABASE_URL: ${DATABASE_URL:-file:./data/local.db}
+
     volumes:
-      # Everything the app remembers lives here. Drop this line and every
-      # event disappears the next time the container is recreated.
+      # Tout ce dont l'app se souvient vit ici. Sans ce volume, chaque
+      # événement disparaît à la recréation du conteneur.
       - convier-data:/app/data
-    ports:
-      - "${HOST_PORT:-3000}:3000"
+
+networks:
+  default:
+  traefik:
+    external: true
+    name: traefik
 
 volumes:
   convier-data:

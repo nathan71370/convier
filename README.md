@@ -78,24 +78,35 @@ Configuration du Stack :
 | File paths | `compose.yaml` |
 
 Dans le champ **Environment** du Stack — Komodo l'écrit dans un `.env` qu'il
-passe à compose via `--env-file` :
+passe à compose via `--env-file` — une seule ligne suffit :
 
 ```
-SITE_URL=https://convier.mondomaine.fr
-HOST_PORT=3000
+CONVIER_HOST=convier.limperiam.com
 ```
 
-`SITE_URL` doit être l'adresse que tes invités ouvrent vraiment : elle sert aux
-liens affichés à l'organisateur et à l'URL inscrite dans le fichier `.ics`. Si
-tu la laisses vide, l'origine est déduite des en-têtes de la requête, ce qui
-convient derrière un reverse proxy qui transmet `X-Forwarded-Host` et
-`X-Forwarded-Proto`.
+Ce nom d'hôte alimente à la fois la règle de routage Traefik et `SITE_URL`,
+l'origine publique utilisée pour les liens montrés à l'organisateur et pour
+l'URL inscrite dans le `.ics`. Les faire dériver d'une même variable évite le
+cas pénible où le proxy sert un domaine pendant que l'app envoie des liens vers
+un autre. Si l'origine publique doit différer de `https://CONVIER_HOST`, pose
+`SITE_URL` explicitement : elle prime.
 
 Ce champ accepte l'interpolation des Variables et Secrets Komodo avec la
-syntaxe à doubles crochets, si tu préfères y garder une valeur centralisée :
+syntaxe à doubles crochets, si tu préfères centraliser la valeur :
 
 ```
-SITE_URL=[[CONVIER_SITE_URL]]
+CONVIER_HOST=[[CONVIER_HOST]]
+```
+
+### Traefik
+
+Le service se rattache au réseau externe `traefik` et porte les labels de
+routage ; il ne publie **aucun port** sur l'hôte. Traefik le joint par le
+réseau docker sur le port 3000, ce qui évite d'exposer l'app en HTTP clair à
+côté du HTTPS servi par le proxy. Le réseau doit exister sur le serveur :
+
+```bash
+docker network create traefik   # si ce n'est pas déjà fait
 ```
 
 Le volume nommé `convier-data` monté sur `/app/data` porte la base SQLite.
