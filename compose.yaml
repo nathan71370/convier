@@ -4,7 +4,9 @@ services:
       context: .
       dockerfile: Dockerfile
     image: convier:latest
-    container_name: convier
+    # Pas de container_name : Komodo nomme les conteneurs d'après le projet du
+    # Stack. En figer un ici empêcherait de faire tourner deux instances
+    # (prod et préprod, par exemple) sur le même serveur.
     restart: unless-stopped
     environment:
       # Public origin of the site. Used for the links shown to the host and for
