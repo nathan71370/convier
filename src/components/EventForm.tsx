@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useId, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { FormState } from "@/app/actions";
+import { DateTimeField } from "./DateTimeField";
 import { FieldError, Label } from "./Field";
 
 export type EventFormInitial = {
@@ -75,8 +76,6 @@ export function EventForm({
     );
   }
 
-  const dateType = allDay ? "date" : "datetime-local";
-
   return (
     <form action={formAction} className="space-y-8">
       {Object.entries(hidden ?? {}).map(([key, value]) => (
@@ -103,14 +102,14 @@ export function EventForm({
       <div className="grid gap-6 sm:grid-cols-2">
         <div>
           <Label htmlFor={`${id}-start`}>Quand</Label>
-          <input
+          <DateTimeField
+            key={`start-${allDay}`}
             id={`${id}-start`}
             name="startsAt"
-            type={dateType}
             value={start}
-            onChange={(event) => setStart(event.target.value)}
+            onChange={setStart}
+            withTime={!allDay}
             required
-            className="field mt-1"
           />
           <FieldError message={errors.startsAt} />
           <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm">
@@ -159,8 +158,8 @@ export function EventForm({
       </div>
 
       {showExtras ? (
-        <div className="border-(--rule) grid gap-6 border-l-2 pl-5 sm:grid-cols-3">
-          <div>
+        <div className="border-(--rule) grid gap-6 border-l-2 pl-5 sm:grid-cols-2">
+          <div className="min-w-0">
             <Label htmlFor={`${id}-host`} hint="facultatif">
               Organisé par
             </Label>
@@ -174,31 +173,30 @@ export function EventForm({
               className="field mt-1"
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <Label htmlFor={`${id}-end`} hint="facultatif">
               Fin
             </Label>
-            <input
+            <DateTimeField
+              key={`end-${allDay}`}
               id={`${id}-end`}
               name="endsAt"
-              type={dateType}
               value={end}
-              onChange={(event) => setEnd(event.target.value)}
-              className="field mt-1"
+              onChange={setEnd}
+              withTime={!allDay}
             />
             <FieldError message={errors.endsAt} />
           </div>
-          <div>
+          <div className="min-w-0">
             <Label htmlFor={`${id}-deadline`} hint="facultatif">
               Réponses avant le
             </Label>
-            <input
+            <DateTimeField
               id={`${id}-deadline`}
               name="rsvpDeadline"
-              type="datetime-local"
               value={deadline}
-              onChange={(event) => setDeadline(event.target.value)}
-              className="field mt-1"
+              onChange={setDeadline}
+              withTime
             />
             <FieldError message={errors.rsvpDeadline} />
           </div>
