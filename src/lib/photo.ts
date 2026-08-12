@@ -1,6 +1,38 @@
 export const PHOTO_SIZE = 256;
 
 /**
+ * Centre-crops any source to a square thumbnail. `mirror` flips it
+ * horizontally, which the front camera needs: people frame themselves against
+ * a mirrored preview, and an unflipped result reads as someone else's face.
+ */
+function squareDataUrl(
+  source: CanvasImageSource,
+  width: number,
+  height: number,
+  mirror = false,
+): string {
+  const side = Math.min(width, height);
+  const sx = (width - side) / 2;
+  const sy = (height - side) / 2;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = PHOTO_SIZE;
+  canvas.height = PHOTO_SIZE;
+
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Impossible de traiter l'image.");
+
+  context.imageSmoothingQuality = "high";
+  if (mirror) {
+    context.translate(PHOTO_SIZE, 0);
+    context.scale(-1, 1);
+  }
+  context.drawImage(source, sx, sy, side, side, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
+
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
+/**
  * Reduces any picture the phone hands us to a square thumbnail, in the
  * browser, before it ever touches the network. A 256px JPEG lands around
  * 20 Ko — small enough to live in the database as a data URL.
@@ -12,24 +44,21 @@ export async function toSquareDataUrl(file: File): Promise<string> {
 
   const bitmap = await createImageBitmap(file);
   try {
-    const side = Math.min(bitmap.width, bitmap.height);
-    const sx = (bitmap.width - side) / 2;
-    const sy = (bitmap.height - side) / 2;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = PHOTO_SIZE;
-    canvas.height = PHOTO_SIZE;
-
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Impossible de traiter l'image.");
-
-    context.imageSmoothingQuality = "high";
-    context.drawImage(bitmap, sx, sy, side, side, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
-
-    return canvas.toDataURL("image/jpeg", 0.82);
+    return squareDataUrl(bitmap, bitmap.width, bitmap.height);
   } finally {
     bitmap.close();
   }
+}
+
+/** Grabs the frame currently showing in a live camera preview. */
+export function frameToSquareDataUrl(
+  video: HTMLVideoElement,
+  mirror: boolean,
+): string {
+  if (!video.videoWidth || !video.videoHeight) {
+    throw new Error("La caméra n'est pas encore prête.");
+  }
+  return squareDataUrl(video, video.videoWidth, video.videoHeight, mirror);
 }
 
 /** Deterministic ink colour from a name, so an avatar keeps its identity. */

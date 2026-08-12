@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Avatar } from "./Avatar";
+import { CameraCapture } from "./CameraCapture";
 import { toSquareDataUrl } from "@/lib/photo";
 
 function CameraIcon() {
@@ -50,10 +51,11 @@ export function PhotoPicker({
 }) {
   const [photo, setPhoto] = useState<string | null>(initialPhoto);
   const [error, setError] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const cameraRef = useRef<HTMLInputElement>(null);
   const albumRef = useRef<HTMLInputElement>(null);
+  const fallbackRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
@@ -76,24 +78,20 @@ export function PhotoPicker({
     event.target.value = "";
   }
 
-  return (
-    <div className="space-y-2">
-      <input type="hidden" name="photo" value={photo ?? ""} />
+  function openCamera() {
+    setError(null);
+    // Needs a secure context; in-app browsers sometimes withhold it. The file
+    // input with `capture` still reaches a camera there, even if it picks the
+    // lens itself.
+    // Typed as always present, absent in practice on insecure origins.
+    const media = navigator.mediaDevices as MediaDevices | undefined;
+    if (media && typeof media.getUserMedia === "function") setCameraOpen(true);
+    else fallbackRef.current?.click();
+  }
 
-      {/*
-        Two inputs rather than one. A lone file input sends most phones straight
-        to the album; `capture` is what opens the camera instead — and `user`,
-        not `environment`, because someone photographing themselves for an
-        avatar wants the front lens.
-      */}
-      <input
-        ref={cameraRef}
-        type="file"
-        accept="image/*"
-        capture="user"
-        className="sr-only"
-        onChange={onPicked}
-      />
+  return (
+    <div className="space-y-3">
+      <input type="hidden" name="photo" value={photo ?? ""} />
       <input
         ref={albumRef}
         type="file"
@@ -101,22 +99,34 @@ export function PhotoPicker({
         className="sr-only"
         onChange={onPicked}
       />
+      <input
+        ref={fallbackRef}
+        type="file"
+        accept="image/*"
+        capture="user"
+        className="sr-only"
+        onChange={onPicked}
+      />
+
+      {cameraOpen ? (
+        <CameraCapture
+          onCapture={(dataUrl) => {
+            setPhoto(dataUrl);
+            setCameraOpen(false);
+          }}
+          onClose={() => setCameraOpen(false)}
+        />
+      ) : null}
 
       <div className="flex items-center gap-4">
         <Avatar name={name || "?"} photo={photo} size={56} />
 
         <div className="flex flex-wrap items-center gap-2">
-          {/*
-            The camera button appears only on a coarse pointer. On a desktop
-            browser `capture` is ignored and would just reopen the file dialog,
-            so the label would promise something it cannot deliver. A media
-            query keeps this out of JavaScript, and so out of hydration.
-          */}
           <button
             type="button"
-            className="btn-quiet hidden [@media(pointer:coarse)]:inline-flex"
-            onClick={() => cameraRef.current?.click()}
-            disabled={pending}
+            className="btn-quiet"
+            onClick={openCamera}
+            disabled={pending || cameraOpen}
           >
             <CameraIcon />
             Prendre une photo
