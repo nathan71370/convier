@@ -39,14 +39,12 @@ export default async function ManagePage({
         <p className="text-ink-soft mt-2 text-sm">
           {counts.yes} présent{counts.yes > 1 ? "s" : ""} · {counts.maybe} peut-être ·{" "}
           {counts.no} absent{counts.no > 1 ? "s" : ""} ·{" "}
-          <span className="text-yes font-semibold">{counts.heads} attendus</span> ·{" "}
-          <Link
-            href={`/e/${event.slug}`}
-            className="hover:text-vermilion underline underline-offset-4"
-          >
-            voir la page publique
-          </Link>
+          <span className="text-yes font-semibold">{counts.heads} attendus</span>
         </p>
+
+        <Link href={`/e/${event.slug}`} className="btn-quiet mt-4">
+          ← Voir la page que reçoivent tes invités
+        </Link>
       </div>
 
       <div

@@ -53,10 +53,23 @@ export default async function EventPage({ params }: Props) {
   const now = requestTime();
   const closed = rsvpClosed(event, now);
   const past = event.startsAt < now;
+  const isHost = event.hostUserId === user.id;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 pb-24 sm:px-10">
-      <article className="animate-rise pt-8 lg:pt-14">
+      {/* Ownership used to travel in a secret URL. Now that it lives on the
+          account, the way in has to be visible — otherwise a host who closed
+          the replies has no way back to reopen them. */}
+      {isHost ? (
+        <div className="border-(--rule) animate-rise mt-8 flex flex-wrap items-center justify-between gap-3 border-l-2 py-2 pl-4 lg:mt-14">
+          <p className="eyebrow">Tu organises cet événement</p>
+          <Link href={`/e/${event.slug}/manage`} className="btn-quiet">
+            Modifier l&apos;événement
+          </Link>
+        </div>
+      ) : null}
+
+      <article className={`animate-rise ${isHost ? "pt-6" : "pt-8 lg:pt-14"}`}>
         <p className="eyebrow">
           {past ? "Événement passé" : countdown(event.startsAt, now)}
           {host ? ` · organisé par ${host}` : ""}
@@ -133,9 +146,15 @@ export default async function EventPage({ params }: Props) {
             <div>
               <h2 className="font-title text-2xl">Les réponses sont closes</h2>
               <p className="text-ink-soft mt-2">
-                La date limite fixée par l&apos;organisateur est passée. La liste
-                ci-contre reste consultable.
+                {isHost
+                  ? "La date limite que tu as fixée est passée. Modifie l'événement pour la repousser ou la retirer."
+                  : "La date limite fixée par l'organisateur est passée. La liste ci-contre reste consultable."}
               </p>
+              {isHost ? (
+                <Link href={`/e/${event.slug}/manage`} className="btn-ink mt-5">
+                  Modifier la date limite
+                </Link>
+              ) : null}
             </div>
           ) : past ? (
             <div>
