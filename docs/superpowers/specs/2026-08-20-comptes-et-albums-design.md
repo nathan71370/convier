@@ -18,11 +18,15 @@ quiconque devine ou reçoit un lien voit l'événement et la liste des invités.
 ## Périmètre
 
 On remplace l'identité par navigateur par un compte identifié par une adresse
-e-mail, vérifiée par un code à usage unique. Seules les adresses présentes dans
-une liste blanche peuvent se connecter, et **toute** page — consultation comme
-création — exige une session. Le compte porte le prénom et la photo, réutilisés
-d'un événement à l'autre, et donne accès à l'historique des événements auxquels
-la personne a répondu.
+e-mail, vérifiée par un code à usage unique. **Toute** page exige une session :
+répondre à une invitation demande donc de donner son adresse. Le compte porte
+le prénom et la photo, réutilisés d'un événement à l'autre, et donne accès à
+l'historique des événements auxquels la personne a répondu.
+
+N'importe qui peut se connecter. La liste blanche ne filtre qu'une chose : le
+droit de **créer** un événement. Un invité de passage répond sans démarche
+particulière, et son adresse est désormais connue — ce qui permet de l'ajouter
+à la liste plus tard s'il devient un habitué.
 
 L'organisateur peut, à la création ou après coup, faire créer un album photo
 partagé Immich dont le lien est visible par tous les invités de l'événement.
@@ -48,6 +52,7 @@ Deux phases livrables séparément. La première conditionne la seconde.
 | Vérification | Code à 6 chiffres par e-mail | Rien à mémoriser, rien à stocker côté visiteur ; adapté à un cercle d'amis. |
 | Transport | SMTP via nodemailer | Fonctionne avec n'importe quel fournisseur, aucun service tiers à provisionner. Sans configuration, le code est journalisé — le flux reste testable. |
 | Liste blanche | Fichier externe désigné par une variable d'environnement | Une seule liste partagée entre plusieurs applications, modifiable sans redéploiement. |
+| Portée de la liste | Création d'événement uniquement | Protège ce qui coûte — publier une invitation — sans imposer de démarche à l'invité, dont on récupère quand même l'adresse. |
 | Session | Jeton opaque en base + cookie httpOnly | Révocable immédiatement, contrairement à un JWT qu'on ne peut que laisser expirer. |
 | Lien d'administration | Supprimé | L'organisateur est désormais identifié par son compte. Un secret dans une URL est un risque qui n'a plus de contrepartie. |
 | Identité affichée | Toujours celle du profil | Une seule source de vérité : changer sa photo la met à jour partout, ce qui est précisément l'intention. |
@@ -96,7 +101,13 @@ L'ordre d'exploitation est donc : déployer, remplir les e-mails en base,
 redémarrer le conteneur. Les lignes sans e-mail ne sont pas perdues, elles
 attendent dans `guests`.
 
-## Liste blanche
+## Liste blanche : qui peut créer
+
+La liste ne conditionne ni la connexion ni la consultation, seulement la
+création d'un événement. Concrètement : le formulaire de création n'apparaît
+pas pour qui n'y figure pas, et l'action serveur refuse la création même
+rejouée directement — la vérification côté action est la seule qui compte, celle
+de l'interface n'est que du confort.
 
 `WHITELIST_FILE` désigne un fichier lisible par le conteneur. Le format est
 délibérément permissif — adresses séparées par des virgules, des points-virgules
@@ -106,10 +117,11 @@ fichier est écrit à la main et partagé entre plusieurs applications.
 Le fichier est relu quand sa date de modification change : ajouter une adresse
 ne demande pas de redéploiement.
 
-En l'absence de variable, ou si le fichier est illisible, **personne** n'est
-autorisé et l'erreur est journalisée sans détour. Une liste de contrôle d'accès
-qui échoue en laissant tout passer est un piège ; mieux vaut une application
-temporairement fermée qu'une application ouverte à tous sans que cela se voie.
+En l'absence de variable, ou si le fichier est illisible, **personne** ne peut
+créer d'événement et l'erreur est journalisée sans détour. Une liste de contrôle
+d'accès qui échoue en laissant tout passer est un piège. La conséquence d'un tel
+échec reste mesurée : l'application continue de fonctionner, seules les nouvelles
+créations sont suspendues.
 
 ## Variables d'environnement ajoutées
 
@@ -122,10 +134,22 @@ temporairement fermée qu'une application ouverte à tous sans que cela se voie.
 
 ## Parcours de connexion
 
-`/connexion` demande une adresse. L'action normalise, vérifie la liste blanche,
-et si l'adresse n'y figure pas le dit franchement : sur une application privée
-entre amis, l'ambiguïté protège moins qu'elle ne dessert. Sinon un code est
-émis, au plus trois par adresse par quart d'heure.
+`/connexion` demande une adresse, quelle qu'elle soit. L'action la normalise et
+émet un code.
+
+Ouvrir la connexion à tous transforme cette action en un envoyeur d'e-mails
+accessible publiquement : sans garde-fou, n'importe qui peut faire expédier des
+codes en rafale vers des adresses arbitraires, avec les identifiants SMTP et la
+réputation de domaine de l'hébergeur. Trois plafonds, tous calculés en comptant
+les lignes récentes de `login_codes`, ferment cette porte :
+
+- trois codes par adresse par quart d'heure ;
+- dix codes par adresse IP par heure ;
+- cent codes par heure toutes origines confondues, en coupe-circuit.
+
+Une demande refusée répond comme une demande acceptée. Signaler le plafond
+atteint n'aiderait qu'à le contourner, et l'expéditeur légitime, lui, a déjà
+reçu son code.
 
 `/connexion/code` demande le code, crée le compte s'il n'existe pas encore,
 ouvre la session et redirige vers la page demandée à l'origine.
@@ -173,9 +197,13 @@ n'a pas accès rendent le même 404.
 
 Le risque se concentre dans des fonctions pures, testées en priorité : analyse
 du fichier de liste blanche (séparateurs mélangés, casse, commentaires, fichier
-vide), normalisation des adresses, cycle de vie d'un code (expiration, plafond
-de tentatives, consommation, rejeu), construction des URL Immich, et
-planification de la migration à partir d'un jeu de lignes `guests`.
+vide, fichier absent — qui doit n'autoriser personne), normalisation des
+adresses, cycle de vie d'un code (expiration, plafond de tentatives,
+consommation, rejeu), les trois plafonds d'émission aux bornes, construction des
+URL Immich, et planification de la migration à partir d'un jeu de lignes
+`guests`.
 
-Le parcours complet — connexion, réponse, changement d'appareil, retrait
-d'accès — est vérifié dans le navigateur avant livraison.
+Le parcours complet est vérifié dans le navigateur avant livraison : connexion
+d'une adresse hors liste, réponse à une invitation, reprise de cette réponse
+depuis un second navigateur, absence du formulaire de création pour un compte
+non autorisé, et refus de l'action de création rejouée directement.
