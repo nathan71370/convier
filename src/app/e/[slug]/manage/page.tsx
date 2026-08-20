@@ -2,6 +2,7 @@ import Link from "next/link";
 import { deleteEvent, updateEvent } from "@/app/actions";
 import { AlbumButton } from "@/components/AlbumButton";
 import { CopyField } from "@/components/CopyField";
+import { GuestAdminList } from "@/components/GuestAdminList";
 import { EventForm } from "@/components/EventForm";
 import { listRsvps, requireOwnedEvent } from "@/lib/events";
 import { requireUser } from "@/lib/session";
@@ -24,7 +25,8 @@ export default async function ManagePage({
     getOrigin(),
   ]);
 
-  const counts = tally(await listRsvps(event.id));
+  const guests = await listRsvps(event.id);
+  const counts = tally(guests);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-6 pt-10 pb-24 sm:px-10">
@@ -72,6 +74,11 @@ export default async function ManagePage({
           }}
         />
       </div>
+
+      <section className="animate-rise mt-12" style={{ animationDelay: "140ms" }}>
+        <h2 className="eyebrow mb-4">Les réponses · {guests.length}</h2>
+        <GuestAdminList guests={guests} slug={event.slug} />
+      </section>
 
       <div className="animate-rise mt-10" style={{ animationDelay: "150ms" }}>
         <p className="eyebrow mb-3">Album photo</p>

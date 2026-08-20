@@ -11,7 +11,12 @@ import { newId, slugify } from "@/lib/ids";
 import { createSharedAlbum, immichConfigured, readImmichConfig } from "@/lib/immich";
 import { rsvpClosed } from "@/lib/rsvp";
 import { requireUser } from "@/lib/session";
-import { eventInputSchema, fieldErrors, rsvpInputSchema } from "@/lib/validation";
+import {
+  eventInputSchema,
+  fieldErrors,
+  guestRsvpSchema,
+  rsvpInputSchema,
+} from "@/lib/validation";
 import { canCreateEvents } from "@/lib/whitelist";
 import { zonedToEpoch } from "@/lib/zoned";
 
@@ -187,7 +192,8 @@ export async function submitRsvp(
     })
     .onConflictDoUpdate({
       target: [rsvps.eventId, rsvps.userId],
-      set: { status, plusOnes: heads, message, updatedAt: now },
+      // Answering for yourself clears the host's mark: the answer is yours again.
+      set: { status, plusOnes: heads, message, hostEditedAt: null, updatedAt: now },
     });
 
   revalidatePath(`/e/${slug}`);
@@ -206,6 +212,61 @@ export async function withdrawRsvp(form: FormData): Promise<void> {
     .where(and(eq(rsvps.eventId, event.id), eq(rsvps.userId, user.id)));
 
   revalidatePath(`/e/${slug}`);
+}
+
+/**
+ * The host answering on someone's behalf — for the friend who says it out loud
+ * and never opens the link.
+ *
+ * The change is stamped rather than silent. Someone who finds their own answer
+ * flipped without explanation has no way to tell a mistake from a bug, and the
+ * guest page says who changed it.
+ */
+export async function setGuestRsvp(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const slug = text(form, "slug");
+  const user = await requireUser(`/e/${slug}/manage`);
+  const event = await requireOwnedEvent(slug, user.id);
+
+  const rsvpId = text(form, "rsvpId");
+  const parsed = guestRsvpSchema.safeParse({
+    status: text(form, "status"),
+    plusOnes: text(form, "plusOnes") || 0,
+  });
+  if (!parsed.success) return { errors: fieldErrors(parsed.error) };
+
+  const { status, plusOnes } = parsed.data;
+  const now = Date.now();
+
+  await db
+    .update(rsvps)
+    .set({
+      status,
+      plusOnes: status === "yes" ? plusOnes : 0,
+      hostEditedAt: now,
+      updatedAt: now,
+    })
+    .where(and(eq(rsvps.id, rsvpId), eq(rsvps.eventId, event.id)));
+
+  revalidatePath(`/e/${event.slug}`);
+  revalidatePath(`/e/${event.slug}/manage`);
+  return { ok: true };
+}
+
+/** Removes someone's answer entirely; they can always answer again. */
+export async function removeGuestRsvp(form: FormData): Promise<void> {
+  const slug = text(form, "slug");
+  const user = await requireUser(`/e/${slug}/manage`);
+  const event = await requireOwnedEvent(slug, user.id);
+
+  await db
+    .delete(rsvps)
+    .where(and(eq(rsvps.id, text(form, "rsvpId")), eq(rsvps.eventId, event.id)));
+
+  revalidatePath(`/e/${event.slug}`);
+  revalidatePath(`/e/${event.slug}/manage`);
 }
 
 export async function updateEvent(

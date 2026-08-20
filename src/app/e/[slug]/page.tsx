@@ -168,6 +168,13 @@ export default async function EventPage({ params }: Props) {
               <h2 className="font-title text-2xl leading-snug">
                 {mine ? `Bon retour, ${mine.name}` : "Tu viens ?"}
               </h2>
+              {mine?.hostEditedAt ? (
+                <p className="border-(--rule) text-ink-soft mt-3 border-l-2 py-1 pl-4 text-sm text-pretty">
+                  L&apos;organisateur a modifié ta réponse. Si ce n&apos;est pas
+                  ce que tu voulais, corrige-la ci-dessous — elle redeviendra la
+                  tienne.
+                </p>
+              ) : null}
               <p className="text-ink-soft mt-1 mb-7 text-sm">
                 {mine
                   ? "Tu peux changer ta réponse autant de fois que tu veux."

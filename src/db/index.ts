@@ -110,6 +110,7 @@ export function ready(): Promise<void> {
         status TEXT NOT NULL,
         plus_ones INTEGER NOT NULL DEFAULT 0,
         message TEXT,
+        host_edited_at INTEGER,
         created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
         updated_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
         UNIQUE (event_id, user_id)
@@ -131,6 +132,7 @@ export function ready(): Promise<void> {
       ["events", "immich_share_url", "TEXT"],
       ["guests", "email", "TEXT"],
       ["guests", "migrated_at", "INTEGER"],
+      ["rsvps", "host_edited_at", "INTEGER"],
     ] as const) {
       try {
         await client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);

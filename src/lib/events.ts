@@ -31,6 +31,7 @@ export async function listRsvps(eventId: string): Promise<RsvpView[]> {
       status: rsvps.status,
       plusOnes: rsvps.plusOnes,
       message: rsvps.message,
+      hostEditedAt: rsvps.hostEditedAt,
     })
     .from(rsvps)
     .innerJoin(users, eq(users.id, rsvps.userId))

@@ -52,6 +52,13 @@ export const rsvpInputSchema = z.object({
   photo: photoSchema.nullable().catch(null),
 });
 
+/** What a host may change on someone else's answer: presence and head count.
+ * Not the message — that is the guest's own words. */
+export const guestRsvpSchema = z.object({
+  status: z.enum(["yes", "no", "maybe"], { message: "Choisis une réponse" }),
+  plusOnes: z.coerce.number().int().min(0).max(MAX_PLUS_ONES).catch(0),
+});
+
 export type EventInput = z.infer<typeof eventInputSchema>;
 export type RsvpInput = z.infer<typeof rsvpInputSchema>;
 

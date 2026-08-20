@@ -9,6 +9,7 @@ export type RsvpView = {
   status: RsvpStatus;
   plusOnes: number;
   message: string | null;
+  hostEditedAt: number | null;
 };
 
 export type Tally = { yes: number; no: number; maybe: number; heads: number };

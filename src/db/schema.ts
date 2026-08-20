@@ -110,6 +110,9 @@ export const rsvps = sqliteTable(
     status: text("status", { enum: ["yes", "no", "maybe"] }).notNull(),
     plusOnes: integer("plus_ones").notNull().default(0),
     message: text("message"),
+    /** Set when the host answered on someone's behalf; cleared the moment that
+     * person edits their own answer again. */
+    hostEditedAt: integer("host_edited_at"),
     createdAt: integer("created_at")
       .notNull()
       .default(sql`(unixepoch() * 1000)`),

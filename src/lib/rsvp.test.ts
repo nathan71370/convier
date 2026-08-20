@@ -15,6 +15,7 @@ function guest(status: RsvpStatus, plusOnes = 0, userId = `u-${++seq}`): RsvpVie
     status,
     plusOnes,
     message: null,
+    hostEditedAt: null,
   };
 }
 
