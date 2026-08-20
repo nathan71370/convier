@@ -48,9 +48,15 @@ services:
       # Tout ce dont l'app se souvient vit ici. Sans ce volume, chaque
       # événement disparaît à la recréation du conteneur.
       - convier-data:/app/data
-      # La liste des adresses autorisées, montée en lecture seule. Le même
-      # fichier peut servir à plusieurs applications.
-      - ${WHITELIST_HOST_FILE:-./data/whitelist.txt}:/whitelist.txt:ro
+      # La liste des adresses autorisées, montée en lecture seule. Chemin ABSOLU
+      # sur l'hôte, hors du dépôt : Komodo reclone le dépôt à chaque
+      # déploiement, un chemin relatif y serait donc écrasé. Le même fichier
+      # peut servir à plusieurs applications.
+      #
+      # Il doit exister AVANT le premier déploiement : Docker crée un
+      # répertoire à la place d'un fichier absent, et l'app ne verrait jamais
+      # d'adresse autorisée.
+      - ${WHITELIST_HOST_FILE:?chemin absolu du fichier, ex. /srv/limperiam/whitelist.txt}:/whitelist.txt:ro
 
 networks:
   default:

@@ -67,15 +67,73 @@ normalement pour tout le reste.
 Les réponses d'avant appartenaient à des navigateurs et n'ont pas d'adresse
 e-mail. Rien n'est détruit : la table `guests` devient une archive.
 
-1. Déployer. Les nouvelles tables et les colonnes `guests.email` et
-   `guests.migrated_at` sont créées au démarrage.
-2. Renseigner les adresses en base :
-   `UPDATE guests SET email = 'lea@exemple.fr' WHERE id = '…';`
-3. Redémarrer le conteneur. Chaque ligne pourvue d'une adresse devient un
-   compte et une réponse ; les autres restent dans `guests`, intactes.
+Sauvegarde d'abord le volume — trente secondes, et tout le reste devient
+rattrapable :
 
-L'opération est idempotente et peut être répétée au fil de l'eau. Une réponse
-retirée après coup n'est pas ressuscitée par un redémarrage.
+```bash
+docker run --rm -v convier-data:/data -v "$PWD":/backup alpine \
+  cp /data/local.db /backup/convier-$(date +%F).db
+```
+
+**1.** Déployer. Les nouvelles tables, les colonnes `guests.email` et
+`guests.migrated_at`, et la reconstruction de `events` sans `admin_token` se
+font au démarrage.
+
+**2.** Lister les réponses à rattacher, avec le nom que la personne avait donné :
+
+```bash
+docker exec <conteneur> node -e '
+const {createClient}=require("/app/node_modules/@libsql/client");
+createClient({url:"file:/app/data/local.db"})
+  .execute("select g.id, g.name, e.title from guests g join events e on e.id=g.event_id where g.migrated_at is null order by g.name")
+  .then(r=>{r.rows.forEach(x=>console.log(`${x.id}\t${x.name}\t${x.title}`));process.exit(0)});'
+```
+
+**3.** Renseigner les adresses, en complétant la liste de couples :
+
+```bash
+docker exec <conteneur> node -e '
+const {createClient}=require("/app/node_modules/@libsql/client");
+const c=createClient({url:"file:/app/data/local.db"});
+const couples = [
+  ["g1","lea@exemple.fr"],
+  ["g2","mehdi@exemple.fr"],
+];
+(async()=>{ for (const [id,email] of couples) {
+  await c.execute({sql:"update guests set email=? where id=?",args:[email,id]});
+} console.log("fait"); process.exit(0); })();'
+```
+
+**4.** Redémarrer le conteneur. Chaque ligne pourvue d'une adresse devient un
+compte et une réponse ; les autres restent dans `guests`, intactes. Les logs
+disent combien ont été promues.
+
+**5.** Réclamer les événements d'avant, qui n'ont pas de propriétaire et que
+personne ne pourrait donc administrer. À faire après t'être connecté une fois,
+pour que ton compte existe :
+
+```bash
+docker exec <conteneur> node -e '
+const {createClient}=require("/app/node_modules/@libsql/client");
+const c=createClient({url:"file:/app/data/local.db"});
+const EMAIL="toi@exemple.fr";
+(async()=>{
+  const u=await c.execute({sql:"select id from users where email=?",args:[EMAIL]});
+  if(!u.rows.length){console.log("connecte-toi une fois d abord");process.exit(1);}
+  const r=await c.execute({sql:"update events set host_user_id=? where host_user_id is null",args:[u.rows[0].id]});
+  console.log("événements réclamés :", r.rowsAffected); process.exit(0);
+})();'
+```
+
+L'étape 3 peut être répétée au fil de l'eau : la promotion est idempotente, et
+une réponse retirée après coup n'est pas ressuscitée par un redémarrage.
+
+Si tu restaures une sauvegarde dans le volume, rends la main à l'utilisateur du
+conteneur, sinon l'application refusera de démarrer :
+
+```bash
+docker run --rm -v convier-data:/data alpine chown -R 1000:1000 /data
+```
 
 ## Albums photo Immich
 
@@ -134,11 +192,22 @@ Configuration du Stack :
 | File paths | `compose.yaml` |
 
 Dans le champ **Environment** du Stack — Komodo l'écrit dans un `.env` qu'il
-passe à compose via `--env-file` — une seule ligne suffit :
+passe à compose via `--env-file` :
 
 ```
 CONVIER_HOST=convier.limperiam.com
+AUTH_SECRET=<openssl rand -hex 32>
+WHITELIST_HOST_FILE=/srv/limperiam/whitelist.txt
+SMTP_HOST=...
+IMMICH_URL=...
+IMMICH_API_KEY=...
 ```
+
+`WHITELIST_HOST_FILE` est le chemin **sur le serveur**, obligatoirement absolu
+et hors du dépôt : Komodo reclone le dépôt à chaque déploiement, un chemin
+relatif y serait donc écrasé. Le fichier doit exister avant le premier
+déploiement — Docker crée un répertoire à la place d'un fichier absent, et
+l'application ne verrait alors jamais aucune adresse autorisée.
 
 Ce nom d'hôte alimente à la fois la règle de routage Traefik et `SITE_URL`,
 l'origine publique utilisée pour les liens montrés à l'organisateur et pour
