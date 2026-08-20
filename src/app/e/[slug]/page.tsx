@@ -102,9 +102,25 @@ export default async function EventPage({ params }: Props) {
           </p>
         ) : null}
 
-        <div className="mt-8">
-          <p className="eyebrow mb-2.5">Ajouter à mon calendrier</p>
-          <CalendarActions event={event} origin={origin} />
+        <div className="mt-8 flex flex-wrap gap-x-10 gap-y-6">
+          <div>
+            <p className="eyebrow mb-2.5">Ajouter à mon calendrier</p>
+            <CalendarActions event={event} origin={origin} />
+          </div>
+
+          {event.immichShareUrl ? (
+            <div>
+              <p className="eyebrow mb-2.5">Album photo</p>
+              <a
+                href={event.immichShareUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="btn-quiet"
+              >
+                Voir et déposer des photos ↗
+              </a>
+            </div>
+          ) : null}
         </div>
       </article>
 
@@ -136,7 +152,7 @@ export default async function EventPage({ params }: Props) {
               <p className="text-ink-soft mt-1 mb-7 text-sm">
                 {mine
                   ? "Tu peux changer ta réponse autant de fois que tu veux."
-                  : "Pas de compte à créer. Trente secondes, promis."}
+                  : "Trente secondes, et tu retrouveras ta réponse partout."}
               </p>
               <RsvpForm slug={event.slug} mine={mine} profile={user} />
             </>

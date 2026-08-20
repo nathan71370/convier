@@ -25,6 +25,8 @@ type Props = {
   timezone: string;
   /** Creating: adopt the visitor's zone. Editing: keep the event's own. */
   detectTimezone: boolean;
+  /** Shown only when the server has Immich configured. */
+  offerAlbum?: boolean;
   hidden?: Record<string, string>;
 };
 
@@ -43,6 +45,7 @@ export function EventForm({
   initial,
   timezone,
   detectTimezone,
+  offerAlbum,
   hidden,
 }: Props) {
   const [state, formAction] = useActionState<FormState, FormData>(action, {});
@@ -195,6 +198,19 @@ export function EventForm({
           + Heure de fin, date limite de réponse
         </button>
       )}
+
+      {offerAlbum ? (
+        <label className="border-(--rule) flex cursor-pointer items-start gap-3 border-l-2 py-1 pl-4 text-sm">
+          <input type="checkbox" name="immichAlbum" className="accent-vermilion mt-1 size-4" />
+          <span>
+            <strong className="block font-bold">Créer un album photo partagé</strong>
+            <span className="text-ink-soft">
+              Un album Immich est créé et son lien affiché sur la page. Tes invités
+              pourront y déposer leurs photos sans avoir de compte.
+            </span>
+          </span>
+        </label>
+      ) : null}
 
       <FieldError message={errors.form} />
 

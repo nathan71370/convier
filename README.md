@@ -1,8 +1,8 @@
 # Convier
 
-Crée un événement, partage un lien. Tes invités mettent leur prénom, une photo
-s'ils veulent, disent s'ils viennent, et l'ajoutent à leur agenda d'un clic.
-Aucun compte, aucune adresse e-mail.
+Crée un événement, partage un lien. Tes invités disent s'ils viennent,
+l'ajoutent à leur agenda d'un clic, et retrouvent leur réponse depuis
+n'importe quel appareil.
 
 ## Démarrer
 
@@ -11,8 +11,15 @@ npm install && npm run dev
 ```
 
 L'application tourne sur http://localhost:3000 et crée sa base SQLite dans
-`data/local.db` au premier chargement. Aucune configuration n'est nécessaire
-pour développer.
+`data/local.db` au démarrage. Deux réglages sont nécessaires, dans `.env.local` :
+
+```
+AUTH_SECRET=n-importe-quelle-chaine-en-developpement
+WHITELIST_FILE=./data/whitelist.txt
+```
+
+Sans transport SMTP configuré, le code de connexion s'affiche dans les logs du
+serveur — le parcours complet reste donc utilisable en local.
 
 ```bash
 npm test        # tests unitaires (node --test)
@@ -22,15 +29,63 @@ npm run lint
 
 ## Comment ça marche
 
-L'organisateur remplit un formulaire et reçoit deux liens : un **lien public**
-à partager, et un **lien d'administration** secret qui permet de modifier ou de
-supprimer l'événement. Le lien d'administration n'est affiché qu'une fois, à la
-création.
+Tout le monde se connecte avec son adresse e-mail et un code à six chiffres :
+pas de mot de passe, et surtout une réponse qui appartient à une personne plutôt
+qu'à un navigateur. C'est ce qui permet de répondre depuis son téléphone et de
+corriger depuis son ordinateur.
 
-Les invités n'ont pas de compte. Un cookie aléatoire identifie le navigateur,
-ce qui permet à chacun de revenir modifier sa propre réponse — et rien d'autre.
-Les photos sont recadrées en vignette 256×256 dans le navigateur avant l'envoi
-et stockées en data URL : aucun service de stockage externe n'est requis.
+Le compte porte le prénom et la photo, réutilisés d'un événement à l'autre, et
+donne accès à l'historique des invitations sur `/profil`. Les photos sont
+recadrées en vignette 256×256 dans le navigateur avant l'envoi et stockées en
+data URL : aucun service de stockage externe n'est requis.
+
+**La liste blanche ne filtre que la création d'un événement.** N'importe qui
+peut se connecter et répondre ; seules les adresses listées voient le
+formulaire de création, et l'action serveur refuse même si on la rejoue.
+
+## Liste blanche
+
+`WHITELIST_FILE` désigne un fichier partagé entre plusieurs applications :
+
+```
+# les amis
+camille@exemple.fr, lea@exemple.fr
+mehdi@exemple.fr
+```
+
+Virgules, points-virgules et retours à la ligne se mélangent librement, les
+lignes commençant par `#` sont ignorées, et la casse n'a pas d'importance. Le
+fichier est relu dès que sa date de modification change : ajouter une adresse
+ne demande pas de redéploiement.
+
+Fichier absent, illisible, ou variable non définie : **personne** ne peut créer
+d'événement et l'erreur est journalisée. L'application continue de fonctionner
+normalement pour tout le reste.
+
+## Migration depuis la version sans comptes
+
+Les réponses d'avant appartenaient à des navigateurs et n'ont pas d'adresse
+e-mail. Rien n'est détruit : la table `guests` devient une archive.
+
+1. Déployer. Les nouvelles tables et les colonnes `guests.email` et
+   `guests.migrated_at` sont créées au démarrage.
+2. Renseigner les adresses en base :
+   `UPDATE guests SET email = 'lea@exemple.fr' WHERE id = '…';`
+3. Redémarrer le conteneur. Chaque ligne pourvue d'une adresse devient un
+   compte et une réponse ; les autres restent dans `guests`, intactes.
+
+L'opération est idempotente et peut être répétée au fil de l'eau. Une réponse
+retirée après coup n'est pas ressuscitée par un redémarrage.
+
+## Albums photo Immich
+
+Renseigner `IMMICH_URL` et `IMMICH_API_KEY` fait apparaître une case à la
+création d'un événement, et un bouton sur la page d'administration pour les
+événements déjà créés. L'album est créé avec un lien public autorisant le dépôt,
+affiché à tous les invités sur la page de l'événement.
+
+L'album est créé **après** l'événement : une panne d'Immich n'empêche jamais
+d'inviter des gens, et le bouton d'administration sert alors à réessayer.
 
 Le bouton calendrier propose un fichier `.ics` (Apple Calendar, Outlook,
 Thunderbird) et un lien Google Agenda. L'`UID` du fichier `.ics` est stable :
@@ -52,7 +107,8 @@ src/
   app/            pages (App Router) et Server Actions
   components/     interface — ne parle jamais à la base
   db/             schéma Drizzle et client libSQL
-  lib/            fonctions pures : ics, fuseaux, validation, photo
+  lib/            fonctions pures : ics, fuseaux, validation, photo,
+                  liste blanche, codes, migration, client Immich
 ```
 
 Chaque module de `lib/` a une responsabilité unique et ses propres tests. Les
@@ -126,6 +182,10 @@ pas.
 | `DATABASE_URL` | `file:./data/local.db` par défaut, ou `libsql://…` en production |
 | `DATABASE_AUTH_TOKEN` | jeton Turso, en production uniquement |
 | `SITE_URL` | origine publique utilisée dans les liens partagés et le `.ics` ; déduite des en-têtes de la requête si absente |
+| `AUTH_SECRET` | **obligatoire** — sel des codes de connexion (`openssl rand -hex 32`) |
+| `WHITELIST_FILE` | fichier des adresses autorisées à créer un événement |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | envoi des codes ; absentes, le code est journalisé |
+| `IMMICH_URL`, `IMMICH_API_KEY` | albums photo partagés ; absentes, la fonctionnalité est masquée |
 
 Volontairement pas préfixée `NEXT_PUBLIC_` : ces variables-là sont figées à la
 compilation, ce qui lierait une image construite à un seul domaine. `SITE_URL`

@@ -3,6 +3,7 @@ import { createEvent } from "./actions";
 import { EventForm } from "@/components/EventForm";
 import { requestTime } from "@/lib/clock";
 import { requireUser } from "@/lib/session";
+import { immichConfigured, readImmichConfig } from "@/lib/immich";
 import { canCreateEvents } from "@/lib/whitelist";
 import { defaultStartLocal } from "@/lib/zoned";
 
@@ -94,6 +95,7 @@ export default async function HomePage({
               initial={initial}
               timezone={timezone}
               detectTimezone
+              offerAlbum={immichConfigured(readImmichConfig())}
             />
           ) : (
             <div className="space-y-4">

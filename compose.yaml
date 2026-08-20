@@ -31,11 +31,26 @@ services:
       # Fichier SQLite local, relatif à /app. Pointe vers libsql://… avec
       # DATABASE_AUTH_TOKEN pour déporter les données sur Turso.
       DATABASE_URL: ${DATABASE_URL:-file:./data/local.db}
+      # Sel des codes de connexion. Sans lui l'application refuse de démarrer,
+      # plutôt que de hacher avec une valeur par défaut connue de tous.
+      AUTH_SECRET: ${AUTH_SECRET:?génère-le avec openssl rand -hex 32}
+      # Chemin DANS le conteneur, correspondant au montage ci-dessous.
+      WHITELIST_FILE: ${WHITELIST_FILE:-/whitelist.txt}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      IMMICH_URL: ${IMMICH_URL:-}
+      IMMICH_API_KEY: ${IMMICH_API_KEY:-}
 
     volumes:
       # Tout ce dont l'app se souvient vit ici. Sans ce volume, chaque
       # événement disparaît à la recréation du conteneur.
       - convier-data:/app/data
+      # La liste des adresses autorisées, montée en lecture seule. Le même
+      # fichier peut servir à plusieurs applications.
+      - ${WHITELIST_HOST_FILE:-./data/whitelist.txt}:/whitelist.txt:ro
 
 networks:
   default:

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { deleteEvent, updateEvent } from "@/app/actions";
+import { AlbumButton } from "@/components/AlbumButton";
 import { CopyField } from "@/components/CopyField";
 import { EventForm } from "@/components/EventForm";
 import { listRsvps, requireOwnedEvent } from "@/lib/events";
 import { requireUser } from "@/lib/session";
 import { tally } from "@/lib/rsvp";
+import { immichConfigured, readImmichConfig } from "@/lib/immich";
 import { getOrigin } from "@/lib/origin";
 import { epochToLocalInput } from "@/lib/zoned";
 
@@ -71,6 +73,26 @@ export default async function ManagePage({
             allDay: event.allDay,
           }}
         />
+      </div>
+
+      <div className="animate-rise mt-10" style={{ animationDelay: "150ms" }}>
+        <p className="eyebrow mb-3">Album photo</p>
+        {event.immichShareUrl ? (
+          <a
+            href={event.immichShareUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="btn-quiet"
+          >
+            Ouvrir l&apos;album ↗
+          </a>
+        ) : immichConfigured(readImmichConfig()) ? (
+          <AlbumButton slug={event.slug} />
+        ) : (
+          <p className="text-ink-faint text-sm">
+            Immich n&apos;est pas configuré sur ce serveur.
+          </p>
+        )}
       </div>
 
       <div className="animate-rise mt-10" style={{ animationDelay: "160ms" }}>

@@ -8,6 +8,7 @@ import { events, rsvps } from "@/db/schema";
 import { fillProfileGaps } from "@/lib/auth-store";
 import { getEventBySlug, requireOwnedEvent } from "@/lib/events";
 import { newId, slugify } from "@/lib/ids";
+import { createSharedAlbum, immichConfigured, readImmichConfig } from "@/lib/immich";
 import { rsvpClosed } from "@/lib/rsvp";
 import { requireUser } from "@/lib/session";
 import { eventInputSchema, fieldErrors, rsvpInputSchema } from "@/lib/validation";
@@ -86,7 +87,56 @@ export async function createEvent(
     }
   }
 
+  if (form.get("immichAlbum") === "on") {
+    await attachAlbum(slug, parsed.data.title, parsed.data.description);
+  }
+
   redirect(`/e/${slug}/share`);
+}
+
+/**
+ * Deliberately after the event exists and never inside the same failure path:
+ * Immich being down must not stop anyone from inviting people. A failure is
+ * recoverable from the manage page, where the same call is one button away.
+ */
+async function attachAlbum(
+  slug: string,
+  title: string,
+  description: string | null,
+): Promise<string | null> {
+  try {
+    const album = await createSharedAlbum(title, description ?? `Photos de « ${title} »`);
+    await db
+      .update(events)
+      .set({ immichAlbumId: album.albumId, immichShareUrl: album.shareUrl })
+      .where(eq(events.slug, slug));
+    return null;
+  } catch (cause) {
+    console.error("[immich] création de l'album impossible", cause);
+    return cause instanceof Error ? cause.message : "Création de l'album impossible.";
+  }
+}
+
+/** Retry button on the manage page, and the way to add an album afterwards. */
+export async function createAlbumForEvent(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const slug = text(form, "slug");
+  const user = await requireUser(`/e/${slug}/manage`);
+  const event = await requireOwnedEvent(slug, user.id);
+
+  if (!immichConfigured(readImmichConfig())) {
+    return { errors: { form: "Immich n'est pas configuré sur ce serveur." } };
+  }
+  if (event.immichShareUrl) return { ok: true };
+
+  const failure = await attachAlbum(event.slug, event.title, event.description);
+  if (failure) return { errors: { form: failure } };
+
+  revalidatePath(`/e/${event.slug}`);
+  revalidatePath(`/e/${event.slug}/manage`);
+  return { ok: true };
 }
 
 export async function submitRsvp(
