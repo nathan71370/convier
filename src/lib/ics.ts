@@ -44,7 +44,7 @@ export function eventEnd(event: EventRow): number {
   return event.endsAt ?? event.startsAt + DEFAULT_DURATION_MS;
 }
 
-export function buildIcs(event: EventRow, origin: string): string {
+export function buildIcs(event: EventRow, origin: string, host?: string | null): string {
   const url = `${origin}/e/${event.slug}`;
   const description = [event.description, `Répondre : ${url}`]
     .filter(Boolean)
@@ -72,7 +72,7 @@ export function buildIcs(event: EventRow, origin: string): string {
     `DESCRIPTION:${escapeText(description)}`,
     `URL:${url}`,
     ...(event.location ? [`LOCATION:${escapeText(event.location)}`] : []),
-    ...(event.hostName ? [`ORGANIZER;CN=${escapeText(event.hostName)}:MAILTO:noreply@invalid`] : []),
+    ...(host ? [`ORGANIZER;CN=${escapeText(host)}:MAILTO:noreply@invalid`] : []),
     "END:VEVENT",
     "END:VCALENDAR",
   ];

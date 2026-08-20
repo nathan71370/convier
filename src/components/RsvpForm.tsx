@@ -15,12 +15,13 @@ const CHOICES: { value: RsvpStatus; label: string; mark: string; tint: string }[
 ];
 
 type Mine = {
-  name: string;
-  photo: string | null;
   status: RsvpStatus;
   plusOnes: number;
   message: string | null;
 } | null;
+
+/** Identity comes from the account, so a returning guest types nothing. */
+type Profile = { name: string | null; photo: string | null };
 
 function Submit({ existing }: { existing: boolean }) {
   const { pending } = useFormStatus();
@@ -31,12 +32,20 @@ function Submit({ existing }: { existing: boolean }) {
   );
 }
 
-export function RsvpForm({ slug, mine }: { slug: string; mine: Mine }) {
+export function RsvpForm({
+  slug,
+  mine,
+  profile,
+}: {
+  slug: string;
+  mine: Mine;
+  profile: Profile;
+}) {
   const [state, formAction] = useActionState<FormState, FormData>(submitRsvp, {});
   const id = useId();
   const errors = state.errors ?? {};
 
-  const [name, setName] = useState(mine?.name ?? "");
+  const [name, setName] = useState(profile.name ?? "");
   const [status, setStatus] = useState<RsvpStatus | null>(mine?.status ?? null);
   const [plusOnes, setPlusOnes] = useState(mine?.plusOnes ?? 0);
 
@@ -105,7 +114,7 @@ export function RsvpForm({ slug, mine }: { slug: string; mine: Mine }) {
         <div>
           <span className="eyebrow">Ta photo</span>
           <div className="mt-2">
-            <PhotoPicker name={name} initialPhoto={mine?.photo ?? null} />
+            <PhotoPicker name={name} initialPhoto={profile.photo} />
           </div>
           <FieldError message={errors.photo} />
         </div>

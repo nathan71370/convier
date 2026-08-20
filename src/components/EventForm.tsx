@@ -10,7 +10,6 @@ export type EventFormInitial = {
   title: string;
   description: string;
   location: string;
-  hostName: string;
   /** Wall-clock strings already expressed in `timezone` by the server. */
   startLocal: string;
   endLocal: string;
@@ -55,7 +54,7 @@ export function EventForm({
   const [end, setEnd] = useState(initial.endLocal);
   const [deadline, setDeadline] = useState(initial.deadlineLocal);
   const [showExtras, setShowExtras] = useState(
-    Boolean(initial.endLocal || initial.deadlineLocal || initial.hostName),
+    Boolean(initial.endLocal || initial.deadlineLocal),
   );
 
   // Written straight to the DOM rather than through state: the server rendered
@@ -160,20 +159,6 @@ export function EventForm({
       {showExtras ? (
         <div className="border-(--rule) grid gap-6 border-l-2 pl-5 sm:grid-cols-2">
           <div className="min-w-0">
-            <Label htmlFor={`${id}-host`} hint="facultatif">
-              Organisé par
-            </Label>
-            <input
-              id={`${id}-host`}
-              name="hostName"
-              defaultValue={initial.hostName}
-              maxLength={80}
-              autoComplete="off"
-              placeholder="Nathan"
-              className="field mt-1"
-            />
-          </div>
-          <div className="min-w-0">
             <Label htmlFor={`${id}-end`} hint="facultatif">
               Fin
             </Label>
@@ -207,7 +192,7 @@ export function EventForm({
           onClick={() => setShowExtras(true)}
           className="text-ink-soft hover:text-vermilion text-sm font-semibold underline underline-offset-4 transition-colors"
         >
-          + Heure de fin, organisateur, date limite de réponse
+          + Heure de fin, date limite de réponse
         </button>
       )}
 

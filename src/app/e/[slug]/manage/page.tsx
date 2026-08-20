@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { deleteEvent, updateEvent } from "@/app/actions";
 import { CopyField } from "@/components/CopyField";
 import { EventForm } from "@/components/EventForm";
-import { getEventByAdminToken, listGuests } from "@/lib/events";
+import { listRsvps, requireOwnedEvent } from "@/lib/events";
+import { requireUser } from "@/lib/session";
 import { tally } from "@/lib/rsvp";
 import { getOrigin } from "@/lib/origin";
 import { epochToLocalInput } from "@/lib/zoned";
@@ -12,23 +12,17 @@ export const metadata = { robots: { index: false } };
 
 export default async function ManagePage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ t?: string }>;
 }) {
-  const [{ slug }, { t }, origin] = await Promise.all([
-    params,
-    searchParams,
+  const { slug } = await params;
+  const user = await requireUser(`/e/${slug}/manage`);
+  const [event, origin] = await Promise.all([
+    requireOwnedEvent(slug, user.id),
     getOrigin(),
   ]);
 
-  const event = await getEventByAdminToken(t ?? "");
-  // A wrong token and a missing event look identical from the outside — the
-  // 404 must not confirm that something exists at this address.
-  if (!event || event.slug !== slug) notFound();
-
-  const counts = tally(await listGuests(event.id));
+  const counts = tally(await listRsvps(event.id));
 
   return (
     <div className="mx-auto w-full max-w-2xl px-6 pt-10 pb-24 sm:px-10">
@@ -60,14 +54,13 @@ export default async function ManagePage({
         <EventForm
           action={updateEvent}
           submitLabel="Enregistrer"
-          hidden={{ token: event.adminToken }}
+          hidden={{ slug: event.slug }}
           timezone={event.timezone}
           detectTimezone={false}
           initial={{
             title: event.title,
             description: event.description ?? "",
             location: event.location ?? "",
-            hostName: event.hostName ?? "",
             startLocal: epochToLocalInput(event.startsAt, event.timezone, event.allDay),
             endLocal: event.endsAt
               ? epochToLocalInput(event.endsAt, event.timezone, event.allDay)
@@ -92,7 +85,7 @@ export default async function ManagePage({
         action={deleteEvent}
         className="border-(--rule) mt-12 border-t pt-6"
       >
-        <input type="hidden" name="token" value={event.adminToken} />
+        <input type="hidden" name="slug" value={event.slug} />
         <p className="eyebrow">Zone sans retour</p>
         <p className="text-ink-soft mt-2 mb-4 text-sm text-pretty">
           Supprimer l&apos;événement efface aussi les {counts.yes + counts.maybe + counts.no}{" "}

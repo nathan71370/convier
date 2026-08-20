@@ -5,10 +5,10 @@ import { CalendarActions } from "@/components/CalendarActions";
 import { GuestList } from "@/components/GuestList";
 import { RsvpForm } from "@/components/RsvpForm";
 import { countdown, formatRange, zoneLabel } from "@/lib/datetime";
-import { getEventBySlug, listGuests } from "@/lib/events";
+import { getEventBySlug, hostName, listRsvps } from "@/lib/events";
 import { findMine, rsvpClosed, tally } from "@/lib/rsvp";
 import { requestTime } from "@/lib/clock";
-import { readGuestKey } from "@/lib/guest";
+import { requireUser } from "@/lib/session";
 import { getOrigin } from "@/lib/origin";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -38,14 +38,18 @@ export default async function EventPage({ params }: Props) {
   const event = await getEventBySlug(slug);
   if (!event) notFound();
 
-  const [guests, guestKey, origin] = await Promise.all([
-    listGuests(event.id),
-    readGuestKey(),
+  // Every page needs a session: the guest list is exactly the sort of thing a
+  // stranger with a leaked link should not read.
+  const user = await requireUser(`/e/${slug}`);
+
+  const [guests, host, origin] = await Promise.all([
+    listRsvps(event.id),
+    hostName(event),
     getOrigin(),
   ]);
 
   const counts = tally(guests);
-  const mine = findMine(guests, guestKey);
+  const mine = findMine(guests, user.id);
   const now = requestTime();
   const closed = rsvpClosed(event, now);
   const past = event.startsAt < now;
@@ -55,7 +59,7 @@ export default async function EventPage({ params }: Props) {
       <article className="animate-rise pt-8 lg:pt-14">
         <p className="eyebrow">
           {past ? "Événement passé" : countdown(event.startsAt, now)}
-          {event.hostName ? ` · organisé par ${event.hostName}` : ""}
+          {host ? ` · organisé par ${host}` : ""}
         </p>
 
         <h1
@@ -134,7 +138,7 @@ export default async function EventPage({ params }: Props) {
                   ? "Tu peux changer ta réponse autant de fois que tu veux."
                   : "Pas de compte à créer. Trente secondes, promis."}
               </p>
-              <RsvpForm slug={event.slug} mine={mine} />
+              <RsvpForm slug={event.slug} mine={mine} profile={user} />
             </>
           )}
         </section>

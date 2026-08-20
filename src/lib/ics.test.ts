@@ -6,7 +6,6 @@ import { buildIcs, googleCalendarUrl } from "./ics.ts";
 const base: EventRow = {
   id: "evt_123",
   slug: "cremaillere-x7k2p",
-  adminToken: "secret",
   title: "Crémaillère",
   description: null,
   location: null,
@@ -14,7 +13,9 @@ const base: EventRow = {
   endsAt: Date.UTC(2026, 8, 12, 22, 0),
   allDay: false,
   timezone: "Europe/Paris",
-  hostName: null,
+  hostUserId: null,
+  immichAlbumId: null,
+  immichShareUrl: null,
   rsvpDeadline: null,
   createdAt: 0,
 };

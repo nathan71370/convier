@@ -29,7 +29,6 @@ export const eventInputSchema = z
     title: z.string().trim().min(1, "Donne un titre à ton événement").max(120),
     description: optionalText(2000),
     location: optionalText(200),
-    hostName: optionalText(80),
     startsAt: timestamp,
     endsAt: timestamp.nullable().catch(null),
     rsvpDeadline: timestamp.nullable().catch(null),

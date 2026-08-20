@@ -4,12 +4,14 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, ready } from "@/db";
-import { events, guests } from "@/db/schema";
-import { getEventByAdminToken, getEventBySlug } from "@/lib/events";
+import { events, rsvps } from "@/db/schema";
+import { fillProfileGaps } from "@/lib/auth-store";
+import { getEventBySlug, requireOwnedEvent } from "@/lib/events";
+import { newId, slugify } from "@/lib/ids";
 import { rsvpClosed } from "@/lib/rsvp";
-import { ensureGuestKey } from "@/lib/guest";
-import { newAdminToken, newId, slugify } from "@/lib/ids";
+import { requireUser } from "@/lib/session";
 import { eventInputSchema, fieldErrors, rsvpInputSchema } from "@/lib/validation";
+import { canCreateEvents } from "@/lib/whitelist";
 import { zonedToEpoch } from "@/lib/zoned";
 
 export type FormState = { errors?: Record<string, string>; ok?: boolean };
@@ -42,7 +44,6 @@ function eventFieldsFrom(form: FormData, fallbackZone: string) {
     title: text(form, "title"),
     description: optional(form, "description"),
     location: optional(form, "location"),
-    hostName: optional(form, "hostName"),
     startsAt: toEpoch("startsAt"),
     endsAt: toEpoch("endsAt"),
     rsvpDeadline: toEpoch("rsvpDeadline"),
@@ -55,12 +56,18 @@ export async function createEvent(
   _prev: FormState,
   form: FormData,
 ): Promise<FormState> {
-  const parsed = eventInputSchema.safeParse(eventFieldsFrom(form, "Europe/Paris"));
+  const user = await requireUser("/");
 
+  // Checked here and not only in the page: hiding the form is a convenience,
+  // this is the check that holds when the action is replayed directly.
+  if (!canCreateEvents(user.email)) {
+    return { errors: { form: "Ton adresse n'est pas autorisée à créer un événement." } };
+  }
+
+  const parsed = eventInputSchema.safeParse(eventFieldsFrom(form, "Europe/Paris"));
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   await ready();
-  const adminToken = newAdminToken();
   let slug = slugify(parsed.data.title);
 
   for (let attempt = 0; ; attempt++) {
@@ -68,7 +75,7 @@ export async function createEvent(
       await db.insert(events).values({
         id: newId(),
         slug,
-        adminToken,
+        hostUserId: user.id,
         ...parsed.data,
       });
       break;
@@ -79,7 +86,7 @@ export async function createEvent(
     }
   }
 
-  redirect(`/e/${slug}/share?t=${adminToken}`);
+  redirect(`/e/${slug}/share`);
 }
 
 export async function submitRsvp(
@@ -87,6 +94,8 @@ export async function submitRsvp(
   form: FormData,
 ): Promise<FormState> {
   const slug = text(form, "slug");
+  const user = await requireUser(`/e/${slug}`);
+
   const event = await getEventBySlug(slug);
   if (!event) return { errors: { form: "Cet événement n'existe plus." } };
 
@@ -104,30 +113,31 @@ export async function submitRsvp(
 
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
-  const guestKey = await ensureGuestKey();
   const now = Date.now();
   const { name, status, plusOnes, message, photo } = parsed.data;
   // "no" carries no head count: keep the data honest rather than trusting the
   // form to have hidden the field.
   const heads = status === "yes" ? plusOnes : 0;
 
+  // Identity lives on the account, so answering also seeds an empty profile —
+  // which is what makes the second invitation ask for nothing.
+  await fillProfileGaps(user, name, photo);
+
   await db
-    .insert(guests)
+    .insert(rsvps)
     .values({
       id: newId(),
       eventId: event.id,
-      guestKey,
-      name,
+      userId: user.id,
       status,
       plusOnes: heads,
       message,
-      photo,
       createdAt: now,
       updatedAt: now,
     })
     .onConflictDoUpdate({
-      target: [guests.eventId, guests.guestKey],
-      set: { name, status, plusOnes: heads, message, photo, updatedAt: now },
+      target: [rsvps.eventId, rsvps.userId],
+      set: { status, plusOnes: heads, message, updatedAt: now },
     });
 
   revalidatePath(`/e/${slug}`);
@@ -136,13 +146,14 @@ export async function submitRsvp(
 
 export async function withdrawRsvp(form: FormData): Promise<void> {
   const slug = text(form, "slug");
+  const user = await requireUser(`/e/${slug}`);
+
   const event = await getEventBySlug(slug);
   if (!event || rsvpClosed(event)) return;
 
-  const guestKey = await ensureGuestKey();
   await db
-    .delete(guests)
-    .where(and(eq(guests.eventId, event.id), eq(guests.guestKey, guestKey)));
+    .delete(rsvps)
+    .where(and(eq(rsvps.eventId, event.id), eq(rsvps.userId, user.id)));
 
   revalidatePath(`/e/${slug}`);
 }
@@ -151,12 +162,11 @@ export async function updateEvent(
   _prev: FormState,
   form: FormData,
 ): Promise<FormState> {
-  const token = text(form, "token");
-  const event = await getEventByAdminToken(token);
-  if (!event) return { errors: { form: "Lien d'administration invalide." } };
+  const slug = text(form, "slug");
+  const user = await requireUser(`/e/${slug}/manage`);
+  const event = await requireOwnedEvent(slug, user.id);
 
   const parsed = eventInputSchema.safeParse(eventFieldsFrom(form, event.timezone));
-
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
 
   await db.update(events).set(parsed.data).where(eq(events.id, event.id));
@@ -167,11 +177,11 @@ export async function updateEvent(
 }
 
 export async function deleteEvent(form: FormData): Promise<void> {
-  const token = text(form, "token");
-  const event = await getEventByAdminToken(token);
-  if (!event) redirect("/");
+  const slug = text(form, "slug");
+  const user = await requireUser(`/e/${slug}/manage`);
+  const event = await requireOwnedEvent(slug, user.id);
 
-  await db.delete(guests).where(eq(guests.eventId, event.id));
+  await db.delete(rsvps).where(eq(rsvps.eventId, event.id));
   await db.delete(events).where(eq(events.id, event.id));
 
   redirect("/?deleted=1");

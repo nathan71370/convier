@@ -1,33 +1,26 @@
 import assert from "node:assert/strict";
 import test, { describe } from "node:test";
-import type { EventRow, GuestRow, RsvpStatus } from "../db/schema.ts";
+import type { EventRow, RsvpStatus } from "../db/schema.ts";
+import type { RsvpView } from "./rsvp.ts";
 import { findMine, rsvpClosed, tally } from "./rsvp.ts";
 
 let seq = 0;
 
-function guest(
-  status: RsvpStatus,
-  plusOnes = 0,
-  guestKey = `key-${++seq}`,
-): GuestRow {
+function guest(status: RsvpStatus, plusOnes = 0, userId = `u-${++seq}`): RsvpView {
   return {
-    id: `g-${seq}`,
-    eventId: "evt",
-    guestKey,
+    id: `r-${seq}`,
+    userId,
     name: "Invité",
     photo: null,
     status,
     plusOnes,
     message: null,
-    createdAt: 0,
-    updatedAt: 0,
   };
 }
 
 const event = (rsvpDeadline: number | null): EventRow => ({
   id: "evt",
   slug: "s",
-  adminToken: "t",
   title: "T",
   description: null,
   location: null,
@@ -35,7 +28,9 @@ const event = (rsvpDeadline: number | null): EventRow => ({
   endsAt: null,
   allDay: false,
   timezone: "Europe/Paris",
-  hostName: null,
+  hostUserId: null,
+  immichAlbumId: null,
+  immichShareUrl: null,
   rsvpDeadline,
   createdAt: 0,
 });
@@ -58,11 +53,11 @@ describe("tally", () => {
 describe("findMine", () => {
   const list = [guest("yes", 0, "mine"), guest("no", 0, "theirs")];
 
-  test("returns the row matching the browser's key", () => {
-    assert.equal(findMine(list, "mine")?.guestKey, "mine");
+  test("rend la ligne du compte connecté", () => {
+    assert.equal(findMine(list, "mine")?.userId, "mine");
   });
 
-  test("returns null for an unknown key or no key at all", () => {
+  test("rend null pour un compte inconnu ou absent", () => {
     assert.equal(findMine(list, "someone-else"), null);
     assert.equal(findMine(list, null), null);
   });

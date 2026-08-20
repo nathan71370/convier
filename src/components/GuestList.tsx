@@ -1,6 +1,6 @@
 import { Avatar } from "./Avatar";
-import type { GuestRow, RsvpStatus } from "@/db/schema";
-import type { Tally } from "@/lib/rsvp";
+import type { RsvpStatus } from "@/db/schema";
+import type { RsvpView, Tally } from "@/lib/rsvp";
 
 const GROUPS: { status: RsvpStatus; title: string; tint: string }[] = [
   { status: "yes", title: "Présents", tint: "var(--color-yes)" },
@@ -13,7 +13,7 @@ export function GuestList({
   counts,
   mineId,
 }: {
-  guests: GuestRow[];
+  guests: RsvpView[];
   counts: Tally;
   mineId?: string | null;
 }) {
